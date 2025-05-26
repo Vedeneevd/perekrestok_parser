@@ -1,0 +1,35 @@
+{
+  "Молоко, сыр, яйца": {
+    "url": "https://www.perekrestok.ru/cat/mc/113/moloko-syr-ajca",
+    "subcategories": [
+      [
+        "Молоко",
+        "https://www.perekrestok.ru/cat/c/114/moloko"
+      ],
+      [
+        "Сыр",
+        "https://www.perekrestok.ru/cat/c/122/syr"
+      ],
+      [
+        "Творог",
+        "https://www.perekrestok.ru/cat/c/117/tvorog"
+      ],
+      [
+        "Сырки",
+        "https://www.perekrestok.ru/cat/c/656/syrki"
+      ],
+      [
+        "Йогурты",
+        "https://www.perekrestok.ru/cat/c/119/jogurty"
+      ],
+      [
+        "Творожки",
+        "https://www.perekrestok.ru/cat/c/657/tvorozki"
+      ],
+      [
+        "Десерты и снеки",
+        "https://www.perekrestok.ru/cat/c/658/deserty-i-sneki"
+      ]
+    ]
+  }
+}

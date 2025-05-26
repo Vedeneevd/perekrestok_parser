@@ -14,9 +14,8 @@ chrome_options.add_argument(
 # Инициализация драйвера с настройками
 driver = webdriver.Chrome(options=chrome_options)
 
-# Список нужных категорий (из вашего вывода)
+# Список нужных категорий
 target_categories = [
-    "Готовая еда",
     "Молоко, сыр, яйца",
     "Овощи, фрукты, грибы",
     "Макароны, крупы, масло, специи",
@@ -40,48 +39,86 @@ target_categories = [
     "Мёд, варенье, джемы, сиропы",
 ]
 
+
+def get_subcategories(main_category_url):
+    """Функция для получения подкатегорий из основной категории"""
+    driver.get(main_category_url)
+    time.sleep(3)  # Ожидание загрузки
+
+    subcategories = []
+    try:
+        # Ищем все элементы подкатегорий
+        sub_elements = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located(
+                (By.XPATH, '//a[contains(@class, "sc-fKFxtB") and contains(@class, "epJywq")]')
+            ))
+
+        for sub in sub_elements:
+            try:
+                href = sub.get_attribute("href")
+                title = sub.find_element(By.XPATH, './/span[contains(@class, "category-text")]').text
+                subcategories.append((title, href))
+            except:
+                continue
+
+    except Exception as e:
+        print(f"Не удалось получить подкатегории: {str(e)}")
+
+    return subcategories
+
+
 try:
-    # Переход на сайт Пятёрочки
+    # Переход на сайт
     print("Открываем сайт...")
     driver.get("https://www.perekrestok.ru/cat")
-
-    # Ожидание загрузки страницы
-    print("Ожидаем загрузки...")
     time.sleep(5)
 
-    # Ожидание появления категорий
-    print("Ищем категории...")
-    wait = WebDriverWait(driver, 20)
-    categories = wait.until(EC.presence_of_all_elements_located(
-        (By.XPATH, '//a[contains(@class, "sc-fKFxtB") and contains(@class, "kdHtPw")]')
-    ))
+    # Получаем все ссылки на основные категории сразу
+    print("Ищем основные категории...")
+    main_category_elements = WebDriverWait(driver, 20).until(
+        EC.presence_of_all_elements_located(
+            (By.XPATH, '//a[contains(@class, "sc-fKFxtB") and contains(@class, "kdHtPw")]')
+        ))
 
-    # Сбор только нужных ссылок
-    category_links = []
-    for category in categories:
+    # Собираем информацию о категориях перед обработкой
+    categories_info = []
+    for element in main_category_elements:
         try:
-            # Ищем заголовок категории разными способами
-            title_element = category.find_element(By.XPATH, './/div[contains(@class, "category-card__title")]')
-            title = title_element.text
+            title = element.find_element(By.XPATH, './/div[contains(@class, "category-card__title")]').text
             if title in target_categories:
-                href = category.get_attribute("href")
-                category_links.append((title, href))
-                print(f"Найдена нужная категория: {title} - {href}")
+                href = element.get_attribute("href")
+                categories_info.append((title, href))
         except Exception as e:
-            # Пропускаем категории, которые не удалось распарсить
+            print(f"Ошибка при получении информации о категории: {str(e)}")
             continue
 
+    # Собираем данные
+    result = {}
+    for title, href in categories_info:
+        print(f"\nОбрабатываем категорию: {title}")
+        subcategories = get_subcategories(href)
+        result[title] = {
+            "url": href,
+            "subcategories": subcategories
+        }
+        print(f"Найдено подкатегорий: {len(subcategories)}")
+        for sub in subcategories:
+            print(f"  - {sub[0]}: {sub[1]}")
+
+        # Возвращаемся на главную страницу категорий
+        driver.get("https://www.perekrestok.ru/cat")
+        time.sleep(3)  # Даем странице время для загрузки
+
     # Вывод результатов
-    print(f"\nИтого найдено {len(category_links)} нужных категорий из {len(target_categories)}:")
-    for i, (title, href) in enumerate(category_links, 1):
-        print(f"{i}. {title}: {href}")
+    print("\nРезультаты:")
+    for category, data in result.items():
+        print(f"\n{category} ({data['url']}):")
+        for sub in data["subcategories"]:
+            print(f"  - {sub[0]}: {sub[1]}")
 
 except Exception as e:
     print(f"Произошла ошибка: {str(e)}")
     driver.save_screenshot("error.png")
-    print("Скриншот ошибки сохранен как error.png")
 
 finally:
-    # Закрытие браузера
     driver.quit()
-    print("Браузер закрыт.")
