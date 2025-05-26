@@ -43,11 +43,10 @@ target_categories = [
 def get_subcategories(main_category_url):
     """Функция для получения подкатегорий из основной категории"""
     driver.get(main_category_url)
-    time.sleep(3)  # Ожидание загрузки
+    time.sleep(3)
 
     subcategories = []
     try:
-        # Ищем все элементы подкатегорий
         sub_elements = WebDriverWait(driver, 10).until(
             EC.presence_of_all_elements_located(
                 (By.XPATH, '//a[contains(@class, "sc-fKFxtB") and contains(@class, "epJywq")]')
@@ -65,6 +64,63 @@ def get_subcategories(main_category_url):
         print(f"Не удалось получить подкатегории: {str(e)}")
 
     return subcategories
+
+
+def get_product_links(category_url):
+    """Функция для получения ссылок на товары в категории"""
+    driver.get(category_url)
+    time.sleep(3)
+
+    product_links = []
+    page = 1
+
+    while True:
+        print(f"Обрабатываем страницу {page}...")
+
+        # Прокрутка страницы для загрузки всех товаров
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        while True:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
+
+        # Сбор ссылок на товары
+        try:
+            product_elements = WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located(
+                    (By.XPATH, '//a[contains(@class, "product-card__link")]')
+                ))
+
+            for product in product_elements:
+                try:
+                    href = product.get_attribute("href")
+                    if href and href not in product_links:
+                        product_links.append(href)
+                except:
+                    continue
+
+            print(f"Найдено товаров: {len(product_links)}")
+
+            # Проверяем наличие кнопки "Показать еще"
+            try:
+                next_button = driver.find_element(By.XPATH, '//button[contains(text(), "Показать еще")]')
+                if next_button.is_enabled():
+                    next_button.click()
+                    time.sleep(3)
+                    page += 1
+                else:
+                    break
+            except:
+                break
+
+        except Exception as e:
+            print(f"Ошибка при получении товаров: {str(e)}")
+            break
+
+    return product_links
 
 
 try:
@@ -97,24 +153,35 @@ try:
     for title, href in categories_info:
         print(f"\nОбрабатываем категорию: {title}")
         subcategories = get_subcategories(href)
-        result[title] = {
+
+        category_data = {
             "url": href,
-            "subcategories": subcategories
+            "subcategories": {}
         }
-        print(f"Найдено подкатегорий: {len(subcategories)}")
-        for sub in subcategories:
-            print(f"  - {sub[0]}: {sub[1]}")
+
+        for sub_title, sub_href in subcategories:
+            print(f"\n  Обрабатываем подкатегорию: {sub_title}")
+            product_links = get_product_links(sub_href)
+            category_data["subcategories"][sub_title] = {
+                "url": sub_href,
+                "products": product_links
+            }
+            print(f"  Найдено товаров: {len(product_links)}")
+            for product in product_links:  # Печатаем первые 3 товара для примера
+                print(f"    - {product}")
+
+        result[title] = category_data
 
         # Возвращаемся на главную страницу категорий
         driver.get("https://www.perekrestok.ru/cat")
-        time.sleep(3)  # Даем странице время для загрузки
+        time.sleep(3)
 
     # Вывод результатов
     print("\nРезультаты:")
     for category, data in result.items():
         print(f"\n{category} ({data['url']}):")
-        for sub in data["subcategories"]:
-            print(f"  - {sub[0]}: {sub[1]}")
+        for subcategory, sub_data in data["subcategories"].items():
+            print(f"  - {subcategory} ({sub_data['url']}): {len(sub_data['products'])} товаров")
 
 except Exception as e:
     print(f"Произошла ошибка: {str(e)}")
