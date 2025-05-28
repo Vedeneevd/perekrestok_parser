@@ -6,8 +6,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 import time
+import random
 import requests
 from urllib.parse import urljoin
+
 
 # Настройка опций для Chrome
 chrome_options = Options()
@@ -54,15 +56,18 @@ columns = [
 ]
 df = pd.DataFrame(columns=columns)
 
+def random_delay(min_sec=1, max_sec=5):
+    """Случайная задержка между запросами"""
+    time.sleep(random.uniform(min_sec, max_sec))
 
 def get_subcategories(main_category_url):
     """Функция для получения подкатегорий из основной категории"""
     driver.get(main_category_url)
-    time.sleep(3)
+    random_delay(2, 4)  # Задержка перед поиском элементов
 
     subcategories = []
     try:
-        sub_elements = WebDriverWait(driver, 10).until(
+        sub_elements = WebDriverWait(driver, 15).until(
             EC.presence_of_all_elements_located(
                 (By.XPATH, '//a[contains(@class, "sc-fKFxtB") and contains(@class, "epJywq")]')
             ))
@@ -72,6 +77,7 @@ def get_subcategories(main_category_url):
                 href = sub.get_attribute("href")
                 title = sub.find_element(By.XPATH, './/span[contains(@class, "category-text")]').text
                 subcategories.append((title, href))
+                random_delay(0.5, 1.5)  # Задержка между обработкой подкатегорий
             except:
                 continue
 
@@ -80,11 +86,10 @@ def get_subcategories(main_category_url):
 
     return subcategories
 
-
 def get_product_links(category_url):
     """Функция для получения ссылок на товары в категории"""
     driver.get(category_url)
-    time.sleep(3)
+    random_delay(3, 6)  # Задержка после загрузки страницы
 
     product_links = []
     page = 1
@@ -96,7 +101,7 @@ def get_product_links(category_url):
         last_height = driver.execute_script("return document.body.scrollHeight")
         while True:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
+            random_delay(1, 3)  # Случайная задержка между прокрутками
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
                 break
@@ -104,7 +109,7 @@ def get_product_links(category_url):
 
         # Сбор ссылок на товары
         try:
-            product_elements = WebDriverWait(driver, 10).until(
+            product_elements = WebDriverWait(driver, 15).until(
                 EC.presence_of_all_elements_located(
                     (By.XPATH, '//a[contains(@class, "product-card__link")]')
                 ))
@@ -114,6 +119,7 @@ def get_product_links(category_url):
                     href = product.get_attribute("href")
                     if href and href not in product_links:
                         product_links.append(urljoin("https://www.perekrestok.ru", href))
+                        random_delay(0.2, 0.8)  # Задержка между обработкой товаров
                 except:
                     continue
 
@@ -124,7 +130,7 @@ def get_product_links(category_url):
                 next_button = driver.find_element(By.XPATH, '//button[contains(text(), "Показать еще")]')
                 if next_button.is_enabled():
                     next_button.click()
-                    time.sleep(3)
+                    random_delay(2, 4)  # Задержка после клика
                     page += 1
                 else:
                     break
@@ -137,11 +143,10 @@ def get_product_links(category_url):
 
     return product_links
 
-
 def get_product_data(product_url, category, subcategory, product_id):
     """Функция для получения данных о товаре"""
     driver.get(product_url)
-    time.sleep(3)
+    random_delay(3, 6)  # Задержка после загрузки страницы товара
 
     product_data = {
         'Категория': category,
@@ -157,7 +162,7 @@ def get_product_data(product_url, category, subcategory, product_id):
 
     try:
         # Наименование товара
-        name = WebDriverWait(driver, 10).until(
+        name = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located(
                 (By.XPATH, '//h1[@class="sc-fubCzh ibFUIH product__title"]')
             )).text
@@ -193,6 +198,7 @@ def get_product_data(product_url, category, subcategory, product_id):
                     product_data['Жиры'] = value
                 elif 'Углеводы' in title:
                     product_data['Углеводы'] = value
+                random_delay(0.1, 0.5)  # Задержка между обработкой элементов
             except:
                 continue
     except:
@@ -259,11 +265,10 @@ def get_product_data(product_url, category, subcategory, product_id):
                         print(f"Изображение сохранено: {img_path}")
                         break
                     else:
-                        print(
-                            f"Попытка {attempt + 1}: Не удалось загрузить изображение. Код статуса: {response.status_code}")
+                        print(f"Попытка {attempt + 1}: Не удалось загрузить изображение. Код статуса: {response.status_code}")
                 except Exception as e:
                     print(f"Попытка {attempt + 1}: Ошибка при загрузке изображения: {str(e)}")
-                    time.sleep(2)
+                    random_delay(2, 5)  # Задержка перед повторной попыткой
         else:
             print("Не удалось найти URL изображения товара")
 
@@ -272,12 +277,11 @@ def get_product_data(product_url, category, subcategory, product_id):
 
     return product_data
 
-
 try:
     # Переход на сайт
     print("Открываем сайт...")
     driver.get("https://www.perekrestok.ru/cat")
-    time.sleep(5)
+    random_delay(4, 7)  # Имитация поведения человека
 
     # Получаем все ссылки на основные категории сразу
     print("Ищем основные категории...")
@@ -294,6 +298,7 @@ try:
             if title in target_categories:
                 href = element.get_attribute("href")
                 categories_info.append((title, href))
+                random_delay(0.5, 2)  # Задержка между обработкой категорий
         except Exception as e:
             print(f"Ошибка при получении информации о категории: {str(e)}")
             continue
@@ -316,6 +321,7 @@ try:
                     product_link, title, sub_title, subcategory_product_id)
                 df = pd.concat([df, pd.DataFrame([product_data])], ignore_index=True)
                 subcategory_product_id += 1
+                random_delay(1, 3)  # Задержка между товарами
 
     # Сохраняем данные в Excel
     df.to_excel('products_data/products.xlsx', index=False)
