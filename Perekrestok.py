@@ -1,4 +1,6 @@
 import os
+import random
+
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -6,10 +8,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 import time
-import random
 import requests
 from urllib.parse import urljoin
-
 
 # Настройка опций для Chrome
 chrome_options = Options()
@@ -77,7 +77,6 @@ def get_subcategories(main_category_url):
                 href = sub.get_attribute("href")
                 title = sub.find_element(By.XPATH, './/span[contains(@class, "category-text")]').text
                 subcategories.append((title, href))
-                random_delay(0.5, 1.5)  # Задержка между обработкой подкатегорий
             except:
                 continue
 
@@ -85,6 +84,7 @@ def get_subcategories(main_category_url):
         print(f"Не удалось получить подкатегории: {str(e)}")
 
     return subcategories
+
 
 def get_product_links(category_url):
     """Функция для получения ссылок на товары в категории"""
@@ -143,14 +143,24 @@ def get_product_links(category_url):
 
     return product_links
 
-def get_product_data(product_url, category, subcategory, product_id):
+
+def get_product_data(product_url, category, subcategory, product_id, subcategory_counter=None):
     """Функция для получения данных о товаре"""
     driver.get(product_url)
     random_delay(3, 6)  # Задержка после загрузки страницы товара
 
+    # Определяем имя подкатегории для папки
+    if not subcategory or subcategory.strip() == "":
+        if subcategory_counter is not None:
+            folder_subcategory = f"subcategory_{subcategory_counter}"
+        else:
+            folder_subcategory = f"subcategory_{product_id}"
+    else:
+        folder_subcategory = subcategory
+
     product_data = {
         'Категория': category,
-        'Подкатегория': subcategory,
+        'Подкатегория': subcategory if subcategory else f"Без названия_{subcategory_counter if subcategory_counter else product_id}",
         'Наименование товара': '',
         'Состав': '',
         'Калории': '',
@@ -207,8 +217,16 @@ def get_product_data(product_url, category, subcategory, product_id):
     # Скачиваем фотографию
     try:
         # Создаем папки для категории и подкатегории
-        category_folder = os.path.join('products_data', category.replace('/', '_'))
-        subcategory_folder = os.path.join(category_folder, subcategory.replace('/', '_'))
+        # Заменяем проблемные символы в названиях
+        safe_category = category.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?',
+                                                                                                                  '_').replace(
+            '"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+        safe_subcategory = folder_subcategory.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*',
+                                                                                                             '_').replace(
+            '?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+
+        category_folder = os.path.join('products_data', safe_category)
+        subcategory_folder = os.path.join(category_folder, safe_subcategory)
 
         if not os.path.exists(category_folder):
             os.makedirs(category_folder)
@@ -265,9 +283,11 @@ def get_product_data(product_url, category, subcategory, product_id):
                         print(f"Изображение сохранено: {img_path}")
                         break
                     else:
-                        print(f"Попытка {attempt + 1}: Не удалось загрузить изображение. Код статуса: {response.status_code}")
+                        print(
+                            f"Попытка {attempt + 1}: Не удалось загрузить изображение. Код статуса: {response.status_code}")
                 except Exception as e:
                     print(f"Попытка {attempt + 1}: Ошибка при загрузке изображения: {str(e)}")
+                    driver.refresh()
                     random_delay(2, 5)  # Задержка перед повторной попыткой
         else:
             print("Не удалось найти URL изображения товара")
@@ -308,20 +328,36 @@ try:
         print(f"\nОбрабатываем категорию: {title}")
         subcategories = get_subcategories(href)
 
+        # Счетчик для подкатегорий без названия
+        unnamed_subcategory_counter = 1
+
         for sub_title, sub_href in subcategories:
-            print(f"\n  Обрабатываем подкатегорию: {sub_title}")
+            print(f"\n  Обрабатываем подкатегорию: {sub_title if sub_title else 'Без названия'}")
             product_links = get_product_links(sub_href)
 
             # Локальный счетчик ID для каждой подкатегории (начинаем с 1)
             subcategory_product_id = 1
 
-            for product_link in product_links:
+            for product_link in product_links[:2]:  # Ограничиваем 2 товарами для теста
                 print(f"    Обрабатываем товар: {subcategory_product_id}")
+
+                # Если подкатегория без названия, передаем счетчик
+                current_subcategory_counter = unnamed_subcategory_counter if not sub_title else None
+
                 product_data = get_product_data(
-                    product_link, title, sub_title, subcategory_product_id)
+                    product_link, title,
+                    sub_title if sub_title else "",
+                    subcategory_product_id,
+                    current_subcategory_counter
+                )
+
                 df = pd.concat([df, pd.DataFrame([product_data])], ignore_index=True)
                 subcategory_product_id += 1
                 random_delay(1, 3)  # Задержка между товарами
+
+            # Увеличиваем счетчик только для подкатегорий без названия
+            if not sub_title:
+                unnamed_subcategory_counter += 1
 
     # Сохраняем данные в Excel
     df.to_excel('products_data/products.xlsx', index=False)
