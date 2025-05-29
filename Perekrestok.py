@@ -1,5 +1,6 @@
 import os
 import random
+import re
 
 import pandas as pd
 from selenium import webdriver
@@ -55,11 +56,29 @@ columns = [
     'Категория', 'Подкатегория', 'Наименование товара', 'Состав',
     'Калории', 'Белки', 'Жиры', 'Углеводы', 'Фотография'
 ]
-df = pd.DataFrame(columns=columns)
+
+# Проверяем существование временного файла и загружаем данные, если он есть
+temp_file = 'products_data/temp_products_data.xlsx'
+if os.path.exists(temp_file):
+    df = pd.read_excel(temp_file)
+    print(f"Загружены промежуточные данные из {temp_file}")
+else:
+    df = pd.DataFrame(columns=columns)
+
 
 def random_delay(min_sec=1, max_sec=5):
     """Случайная задержка между запросами"""
     time.sleep(random.uniform(min_sec, max_sec))
+
+
+def save_temp_data():
+    """Сохраняет промежуточные данные во временный файл"""
+    try:
+        df.to_excel(temp_file, index=False)
+        print(f"\nПромежуточные данные сохранены в {temp_file}")
+    except Exception as e:
+        print(f"\nОшибка при сохранении временных данных: {str(e)}")
+
 
 def get_subcategories(main_category_url):
     """Функция для получения подкатегорий из основной категории"""
@@ -147,17 +166,12 @@ def get_product_links(category_url):
 
 def get_product_data(product_url, category, subcategory, product_id, subcategory_counter=None):
     """Функция для получения данных о товаре"""
+    print(f"\n[Начало обработки] Товар ID: {product_id}, URL: {product_url}")
     driver.get(product_url)
-    random_delay(3, 6)  # Задержка после загрузки страницы товара
+    random_delay(3, 6)
 
     # Определяем имя подкатегории для папки
-    if not subcategory or subcategory.strip() == "":
-        if subcategory_counter is not None:
-            folder_subcategory = f"subcategory_{subcategory_counter}"
-        else:
-            folder_subcategory = f"subcategory_{product_id}"
-    else:
-        folder_subcategory = subcategory
+    folder_subcategory = subcategory if subcategory else f"subcategory_{subcategory_counter if subcategory_counter else product_id}"
 
     product_data = {
         'ID': product_id,
@@ -295,9 +309,11 @@ def get_product_data(product_url, category, subcategory, product_id, subcategory
             print("Не удалось найти URL изображения товара")
 
     except Exception as e:
-        print(f"Ошибка при обработке изображения: {str(e)}")
+        print(f"[Ошибка] Не удалось сохранить изображение: {str(e)}")
 
+    print("[Результат] Собранные данные:", product_data)
     return product_data
+
 
 try:
     # Переход на сайт
@@ -357,17 +373,29 @@ try:
                 subcategory_product_id += 1
                 random_delay(1, 3)  # Задержка между товарами
 
+            # Сохраняем промежуточные данные после обработки каждой подкатегории
+            save_temp_data()
+
             # Увеличиваем счетчик только для подкатегорий без названия
             if not sub_title:
                 unnamed_subcategory_counter += 1
 
-    # Сохраняем данные в Excel
-    df.to_excel('products_data/products.xlsx', index=False)
-    print("\nДанные успешно сохранены в products_data/products.xlsx")
+    # Сохраняем финальные данные в Excel
+    final_file = 'products_data/products.xlsx'
+    df.to_excel(final_file, index=False)
+    print(f"\nФинальные данные успешно сохранены в {final_file}")
+
+    # Удаляем временный файл после успешного завершения
+    if os.path.exists(temp_file):
+        os.remove(temp_file)
+        print(f"Временный файл {temp_file} удален")
 
 except Exception as e:
     print(f"Произошла ошибка: {str(e)}")
     driver.save_screenshot("error.png")
+
+    # Сохраняем данные перед завершением в случае ошибки
+    save_temp_data()
 
 finally:
     driver.quit()
