@@ -51,6 +51,7 @@ if not os.path.exists('products_data'):
 
 # Создаем DataFrame для хранения данных
 columns = [
+    'ID',  # Новый столбец для идентификатора
     'Категория', 'Подкатегория', 'Наименование товара', 'Состав',
     'Калории', 'Белки', 'Жиры', 'Углеводы', 'Фотография'
 ]
@@ -159,6 +160,7 @@ def get_product_data(product_url, category, subcategory, product_id, subcategory
         folder_subcategory = subcategory
 
     product_data = {
+        'ID': product_id,
         'Категория': category,
         'Подкатегория': subcategory if subcategory else f"Без названия_{subcategory_counter if subcategory_counter else product_id}",
         'Наименование товара': '',
